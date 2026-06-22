@@ -1,0 +1,244 @@
+version: 1
+description: >
+  Eval question set for the dbt-agentic-engine toolbelt: list_models, get_model_columns,
+  run_query (enforced SELECT-only), get_test_results. Ground truth for investigation-tier
+  questions is derived from dbt/seeds/events.md — see that file for full event
+  documentation. expected_tool_calls is the minimum-path estimate, not a hard requirement;
+  the agent loop's hard cap is 6 tool calls per question (see docs/spec.md). This file is
+  meant to be parsed directly by the project 2 eval harness.
+
+questions:
+
+  # --- Lookup tier: 1-2 tool calls ---
+
+  - id: q01
+    tier: lookup
+    question: "What columns does the fct_mrr_monthly mart have?"
+    expected_tool_calls: 1
+    expected_tools: [get_model_columns]
+    expected_answer: "customer_id, month_date, mrr_amount."
+    ground_truth_ref: dbt/models/marts/schema.yml#fct_mrr_monthly
+
+  - id: q02
+    tier: lookup
+    question: "List all the mart-layer models in this project."
+    expected_tool_calls: 1
+    expected_tools: [list_models]
+    expected_answer: >
+      dim_customers, fct_contract_events, fct_customer_logo_monthly,
+      fct_mrr_bridge_monthly, fct_mrr_monthly, fct_revenue_recognized_monthly.
+    ground_truth_ref: dbt/models/marts/
+
+  - id: q03
+    tier: lookup
+    question: "What is the customer_id for Acme Co?"
+    expected_tool_calls: 1
+    expected_tools: [run_query]
+    expected_answer: "C001"
+    expected_sql: "SELECT customer_id FROM dim_customers WHERE customer_name = 'Acme Co'"
+    ground_truth_ref: dbt/seeds/raw_customers.csv
+
+  - id: q04
+    tier: lookup
+    question: "Do all tests currently pass for the fct_mrr_bridge_monthly model?"
+    expected_tool_calls: 1
+    expected_tools: [get_test_results]
+    expected_answer: >
+      Yes — all 7 tests pass (6 not_null tests on month_date/new_mrr/expansion_mrr/
+      contraction_mrr/churned_mrr/net_new_mrr, plus 1 unique test on month_date).
+    ground_truth_ref: dbt/models/marts/schema.yml#fct_mrr_bridge_monthly
+
+  - id: q05
+    tier: lookup
+    question: "What types of events are tracked in the contract events log?"
+    expected_tool_calls: 1
+    expected_tools: [get_model_columns]
+    expected_answer: >
+      plan_upgrade, contract_transfer, delayed_invoice, new_logo, cancellation.
+    ground_truth_ref: dbt/models/staging/schema.yml#stg_contract_events
+
+  # --- Investigation tier: 3-5 tool calls, cross-referencing, built on seeded events ---
+
+  - id: q06
+    tier: investigation
+    question: "Why did Acme Co's MRR increase in April 2025?"
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      Acme Co's (C001) contracted MRR jumped from $800 to $2,400 (+$1,600) between
+      March and April 2025. fct_contract_events shows event E001: a plan upgrade from
+      Growth to Enterprise effective 2025-04-01. This is real expansion MRR, not a new
+      deal — Acme's logo count is unaffected (same customer, continuously active).
+    expected_data:
+      mar_mrr: 800.00
+      apr_mrr: 2400.00
+      delta: 1600.00
+      event_id: E001
+      event_type: plan_upgrade
+    ground_truth_ref: dbt/seeds/events.md#event-1--plan-upgrade-acme-co-april-2025
+
+  - id: q07
+    tier: investigation
+    question: >
+      Initech LLC's logo count dropped in July 2025. Is this real customer churn?
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      No. fct_customer_logo_monthly shows Initech LLC (C003) flagged as churned in July
+      2025, and Globex Corp (C004) flagged as a new logo the same month — but
+      fct_mrr_monthly shows the underlying subscription's MRR held flat at $900 the
+      whole time, just under a different customer_id. fct_contract_events event E002
+      explains why: Globex acquired Initech and the contract (S003) was transferred at
+      unchanged terms. This is a contract transfer, not real churn or real new
+      business — net MRR impact is $0.
+    expected_data:
+      churned_customer: C003
+      new_customer: C004
+      subscription_id: S003
+      event_id: E002
+      event_type: contract_transfer
+      mrr_before_and_after: 900.00
+    ground_truth_ref: dbt/seeds/events.md#event-2--contract-transfer-initech-llc--globex-corp-july-2025
+
+  - id: q08
+    tier: investigation
+    question: >
+      Brightline Inc's recognized revenue dropped in September 2025 even though they
+      didn't cancel. Why?
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      Brightline Inc's (C002) contracted MRR in fct_mrr_monthly stayed flat at $450
+      through September and October — no subscription change. But
+      fct_revenue_recognized_monthly shows $0 recognized in September and $900 (double
+      the usual $450) in October. fct_contract_events event E003 explains it: the
+      September invoice was processed late and recognized in October instead. This is
+      a timing issue, not a real revenue or contract problem.
+    expected_data:
+      customer_id: C002
+      sept_mrr: 450.00
+      sept_recognized_revenue: 0.00
+      oct_recognized_revenue: 900.00
+      event_id: E003
+      event_type: delayed_invoice
+    ground_truth_ref: dbt/seeds/events.md#event-3--delayed-invoice-brightline-inc-september-2025
+
+  - id: q09
+    tier: investigation
+    question: >
+      Check fct_mrr_monthly, fct_customer_logo_monthly, and fct_mrr_bridge_monthly —
+      do any of these three marts currently have failing tests?
+    expected_tool_calls: 3
+    expected_tools: [get_test_results, get_test_results, get_test_results]
+    expected_answer: >
+      No — all tests pass across all three marts as of the last dbt build.
+    ground_truth_ref: dbt build log (113/113 PASS)
+
+  - id: q10
+    tier: investigation
+    question: >
+      What drove the MRR bridge numbers in July 2025 — was it a flat month with no
+      real customer activity, or is something else going on?
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      Something else is going on — the $0 net is misleading if read as "nothing
+      happened." fct_customer_logo_monthly shows Initech LLC (C003) churned and Globex
+      Corp (C004) appeared as a new logo in the same month, and fct_contract_events
+      (event E002) shows these are the same underlying contract (S003) transferred
+      between accounts after an acquisition. So July's gross new/churned MRR isn't two
+      independent real events that happened to cancel out — it's one transfer that the
+      naive bridge logic mislabels as two. Actual organic MRR movement in July was $0,
+      and logo count is unaffected once the transfer is accounted for.
+    expected_data:
+      new_mrr: 900.00
+      churned_mrr: -900.00
+      net_new_mrr: 0.00
+      event_id: E002
+    ground_truth_ref: dbt/seeds/events.md#event-2--contract-transfer-initech-llc--globex-corp-july-2025
+
+  - id: q11
+    tier: investigation
+    question: >
+      Vandelay Industries' subscription started in February 2025. Did the bridge mart
+      classify this as expansion, contraction, or something else?
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      Neither — it's classified as new MRR, not expansion or contraction.
+      fct_mrr_bridge_monthly shows February 2025 new_mrr of $420 (expansion_mrr and
+      contraction_mrr are both $0 that month for this customer's contribution).
+      fct_customer_logo_monthly confirms Vandelay Industries (C007) is flagged
+      is_new_logo = true in February, and fct_contract_events event E004 confirms this
+      was a new-logo signing, not an upgrade or downgrade of an existing account.
+    expected_data:
+      customer_id: C007
+      month: "2025-02-01"
+      new_mrr_contribution: 420.00
+      is_new_logo: true
+      event_id: E004
+    ground_truth_ref: dbt/seeds/events.md#supporting-events-not-headline-cases-but-feed-the-bridgelogo-marts
+
+  - id: q12
+    tier: investigation
+    question: >
+      Dunder Mifflin canceled their contract in 2025. Does the churn show up in the
+      logo and MRR bridge marts in the same month they canceled, or a different one —
+      and why?
+    expected_tool_calls: 3
+    expected_tools: [run_query, run_query, run_query]
+    expected_answer: >
+      September, not August. fct_contract_events (event E006) shows the cancellation
+      took effect on the last day of August (2025-08-31), so Dunder Mifflin (C012)
+      still had active MRR for all of August — fct_customer_logo_monthly shows
+      is_active = true and is_churned_logo = false for August. September is the first
+      month with no line item at all, so fct_customer_logo_monthly flags
+      is_churned_logo = true that month, and fct_mrr_bridge_monthly shows -$400 of
+      churned_mrr in September. The one-month lag is expected: a contract ending on
+      the last day of a month doesn't register as churn until the following month has
+      zero MRR.
+    expected_data:
+      customer_id: C012
+      cancellation_event_date: "2025-08-31"
+      august_is_churned_logo: false
+      september_is_churned_logo: true
+      september_churned_mrr: -400.00
+      event_id: E006
+    ground_truth_ref: dbt/seeds/events.md#supporting-events-not-headline-cases-but-feed-the-bridgelogo-marts
+
+  # --- Unanswerable tier: outside the toolbelt's scope, should decline rather than fabricate ---
+
+  - id: q13
+    tier: unanswerable
+    question: "What's the total value of our open sales pipeline for Q3 2025?"
+    expected_tool_calls: "0-2"
+    expected_behavior: >
+      Decline. There is no pipeline/opportunity entity anywhere in this project — only
+      signed subscriptions, line items, invoices, and contract events. 0-2 tool calls
+      (e.g. list_models, or get_model_columns on a plausible-sounding mart) to confirm
+      no such data exists is good practice and should not be penalized — the failure
+      mode being tested is fabricating a number from MRR/invoice data, or guessing,
+      not whether the agent checks first.
+    ground_truth_ref: "no opportunities/pipeline model exists in dbt/models/"
+
+  - id: q14
+    tier: unanswerable
+    question: "Which sales rep owns the Acme Co account?"
+    expected_tool_calls: "0-1"
+    expected_behavior: >
+      Decline. No model in this project has an account-owner, sales-rep, or CSM column
+      — dim_customers only has customer_id, customer_name, segment, region, and
+      signup_date. A single get_model_columns(dim_customers) check before declining is
+      good practice. The failure mode being tested is inventing a plausible-sounding
+      name rather than saying it isn't tracked.
+    ground_truth_ref: dbt/models/marts/schema.yml#dim_customers
+
+  - id: q15
+    tier: unanswerable
+    question: "What's the average support ticket resolution time for Enterprise customers?"
+    expected_tool_calls: "0-2"
+    expected_behavior: >
+      Decline. There is no support/ticketing entity anywhere in this project. The
+      failure mode being tested is fabricating a duration or percentage rather than
+      saying this data doesn't exist here.
+    ground_truth_ref: "no support/ticketing model exists in dbt/models/"
