@@ -10,3 +10,6 @@ __pycache__/
 .venv/
 .env
 CLAUDE.md
+
+# rolling dev trace log -- keep curated samples (traces/sample_*.jsonl) tracked instead
+traces/trace_log.jsonl

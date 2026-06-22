@@ -82,3 +82,23 @@ Carried over from prior work (do not reintroduce):
   `[sqlfluff:layout:type:comma]`, then re-running `sqlfluff fix` and committing the correction
   separately. Lesson: a pre-commit hook that auto-fixes is a second author with its own opinions
   — check its diff after every commit until a config file pins its behavior, not just before.
+
+- CLAUDE.md was committed and pushed in the very first commit, before this project's work began,
+  on a public GitHub repo. Caught when reviewing what gets pushed during Phase 4. Fixed by
+  installing git-filter-repo and rewriting history to strip CLAUDE.md from every commit, then
+  force-pushing — confirmed `git rev-list --objects --all | grep -i claude.md` returns nothing
+  post-rewrite. Added CLAUDE.md to .gitignore so it can't be re-tracked; the file still exists
+  locally as untracked instructions. `git filter-repo` requires a clean working tree and resets
+  tracked files to HEAD before rewriting — it silently discarded uncommitted Phase 4 changes to
+  agent_loop.py in the process. Recovered from a full repo backup taken immediately before
+  running it. Always back up the whole repo before any history rewrite, not just the file being
+  removed, and expect a clean-working-tree precondition to cost you anything uncommitted.
+
+- Chose JSON Lines over a DuckDB table for trace storage (per docs/spec.md, justified in the
+  README): the agent's tools enforce no write access to the project's own warehouse, full stop,
+  so a writable DuckDB table for traces would mean a second writable connection for no real
+  benefit. A flat append-only file needs no database, diffs cleanly when a sample is committed,
+  and is readable by project 2's eval harness in any language without a DuckDB dependency.
+  Verified queryable both ways: `jq` for ad-hoc filtering and DuckDB's own `read_json_auto`
+  directly against the file, satisfying the spec's "queryable/exportable" requirement concretely
+  rather than by assertion.
