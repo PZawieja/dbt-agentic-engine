@@ -72,3 +72,13 @@ Carried over from prior work (do not reintroduce):
   `git status` and `git check-ignore` on both files. Always verify which of a template/real-file
   pair actually received a secret before trusting "it's gitignored" — the gitignore protects the
   right file only if the secret landed in it.
+
+- A local (untracked) `.git/hooks/pre-commit` runs `sqlfluff fix --dialect duckdb` on staged
+  `.sql` files and re-stages them. With no `.sqlfluff` config in the repo, sqlfluff's default
+  `LT04` policy is trailing commas — the opposite of this project's non-negotiable leading-comma
+  rule — so the very first dbt commit silently rewrote every model to trailing commas on the way
+  in. Caught immediately after committing by re-reading the diff the hook produced, not before.
+  Fixed by adding `.sqlfluff` at the repo root with `line_position = leading` under
+  `[sqlfluff:layout:type:comma]`, then re-running `sqlfluff fix` and committing the correction
+  separately. Lesson: a pre-commit hook that auto-fixes is a second author with its own opinions
+  — check its diff after every commit until a config file pins its behavior, not just before.
