@@ -1,0 +1,180 @@
+version: 2
+
+models:
+  - name: stg_calendar_months
+    description: >
+      One row per first-of-month date for the 2025 analysis window. Used to build
+      gapless customer-month spines for bridge/churn logic in the intermediate layer.
+    columns:
+      - name: month_date
+        description: Primary key. First-of-month calendar date.
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_customers
+    description: One row per customer account, cast/renamed 1:1 from raw_customers.
+    columns:
+      - name: customer_id
+        description: Primary key. Unique customer/account identifier.
+        tests:
+          - unique
+          - not_null
+      - name: customer_name
+        description: Display name of the customer account.
+      - name: segment
+        description: "Customer size segment: SMB, MidMarket, or Enterprise."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["SMB", "MidMarket", "Enterprise"]
+      - name: region
+        description: Sales region the customer is booked under.
+      - name: signup_date
+        description: Date the customer first signed up.
+
+  - name: stg_subscriptions
+    description: >
+      One row per subscription contract. original_customer_id is the customer who
+      originally signed the contract — it does NOT reflect later ownership changes
+      (see raw_contract_events for transfers). Current ownership in a given month must
+      be derived from stg_subscription_line_items.
+    columns:
+      - name: subscription_id
+        description: Primary key. Unique subscription/contract identifier.
+        tests:
+          - unique
+          - not_null
+      - name: original_customer_id
+        description: Customer who originally signed this subscription.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: start_date
+        description: Contract start date.
+      - name: end_date
+        description: Contract end date, null if still active.
+      - name: status
+        description: "Current contract status: active or canceled."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["active", "canceled"]
+
+  - name: stg_subscription_line_items
+    description: >
+      Monthly MRR grain — one row per subscription per active month, with the
+      customer_id that owned the subscription in that month. This is the source of
+      truth for contracted MRR and for which customer a subscription belonged to at any
+      point in time (handles mid-contract ownership transfers).
+    columns:
+      - name: line_item_id
+        description: Primary key. Unique row identifier.
+        tests:
+          - unique
+          - not_null
+      - name: subscription_id
+        description: Subscription this line item belongs to.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_subscriptions')
+                field: subscription_id
+      - name: customer_id
+        description: Customer who owned the subscription during this month.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: month_date
+        description: First-of-month date this line item applies to.
+        tests:
+          - not_null
+      - name: plan_name
+        description: Plan tier active in this month (Starter, Growth, Enterprise).
+      - name: mrr_amount
+        description: Monthly recurring revenue contributed by this subscription in this month.
+
+  - name: stg_invoices
+    description: >
+      One row per invoice. invoice_month is the contractual month being billed;
+      recognized_month is the month revenue was actually recognized — they differ only
+      when an invoice was processed late (see raw_contract_events).
+    columns:
+      - name: invoice_id
+        description: Primary key. Unique invoice identifier.
+        tests:
+          - unique
+          - not_null
+      - name: subscription_id
+        description: Subscription this invoice bills for.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_subscriptions')
+                field: subscription_id
+      - name: customer_id
+        description: Customer billed on this invoice.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: invoice_month
+        description: First-of-month date this invoice was contractually billed for.
+      - name: recognized_month
+        description: First-of-month date revenue was actually recognized.
+      - name: amount
+        description: Invoice amount.
+
+  - name: stg_contract_events
+    description: >
+      Narrative log of business events (plan upgrades, contract transfers, delayed
+      invoices, new logos, cancellations) that explain anomalies in the marts. This is
+      the join target for "why did metric X move" investigations.
+    columns:
+      - name: event_id
+        description: Primary key. Unique event identifier.
+        tests:
+          - unique
+          - not_null
+      - name: event_date
+        description: Date the event took effect.
+        tests:
+          - not_null
+      - name: event_type
+        description: >
+          Type of event: plan_upgrade, contract_transfer, delayed_invoice, new_logo, or
+          cancellation.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["plan_upgrade", "contract_transfer", "delayed_invoice", "new_logo", "cancellation"]
+      - name: subscription_id
+        description: Subscription this event applies to.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_subscriptions')
+                field: subscription_id
+      - name: old_customer_id
+        description: Prior customer owner, populated only for contract_transfer/cancellation events.
+      - name: new_customer_id
+        description: New customer owner, populated only for contract_transfer/new_logo events.
+      - name: old_plan
+        description: Plan before the event, populated only for plan_upgrade/cancellation events.
+      - name: new_plan
+        description: Plan after the event, populated only for plan_upgrade/new_logo events.
+      - name: mrr_delta
+        description: Net MRR impact of this event, signed (positive = expansion/new, negative = churn).
+      - name: description
+        description: Human-readable explanation of the event and its expected downstream effect.

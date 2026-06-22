@@ -1,0 +1,50 @@
+version: 2
+
+seeds:
+  - name: raw_customers
+    description: Raw customer/account roster. See seeds/events.md for the named events baked into this dataset.
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+
+  - name: raw_subscriptions
+    description: Raw subscription contracts, one row per subscription.
+    columns:
+      - name: subscription_id
+        tests:
+          - unique
+          - not_null
+
+  - name: raw_subscription_line_items
+    description: Raw monthly MRR line items per subscription. Source of truth for contracted MRR and month-by-month ownership.
+    columns:
+      - name: line_item_id
+        tests:
+          - unique
+          - not_null
+
+  - name: raw_invoices
+    description: Raw invoices, one row per billed month per subscription.
+    columns:
+      - name: invoice_id
+        tests:
+          - unique
+          - not_null
+
+  - name: raw_contract_events
+    description: Narrative log of the named business events baked into this dataset (see seeds/events.md).
+    columns:
+      - name: event_id
+        tests:
+          - unique
+          - not_null
+
+  - name: calendar_months
+    description: Reference calendar — one row per first-of-month date for 2025.
+    columns:
+      - name: month_date
+        tests:
+          - unique
+          - not_null

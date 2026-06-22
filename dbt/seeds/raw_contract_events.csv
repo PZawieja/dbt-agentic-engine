@@ -1,0 +1,7 @@
+event_id,event_date,event_type,subscription_id,old_customer_id,new_customer_id,old_plan,new_plan,mrr_delta,description
+E001,2025-04-01,plan_upgrade,S001,,,Growth,Enterprise,1600.0,"Acme Co upgraded from Growth to Enterprise tier effective April 2025. Adds $1,600 expansion MRR; no change in logo count."
+E002,2025-07-01,contract_transfer,S003,C003,C004,Growth,Growth,0.0,"Initech LLC was acquired by Globex Corp; subscription S003 transferred to Globex effective July 2025 at unchanged terms ($900/mo Growth). Initech logo count drops by 1 and Globex logo count rises by 1 in July, but this is not real churn or new business -- same contract, same MRR, continuous service."
+E003,2025-09-01,delayed_invoice,S002,,,,,0.0,Brightline Inc's September 2025 invoice was processed late and recognized in October instead. Contracted MRR for S002 is unaffected ($450/mo throughout); recognized revenue shows a $450 dip in September and a $450 spike in October for this customer.
+E004,2025-02-01,new_logo,S006,,C007,,Starter,420.0,"Vandelay Industries signed as a new logo, Starter plan, effective February 2025."
+E005,2025-05-01,new_logo,S010,,C011,,Starter,400.0,"Pied Piper signed as a new logo, Starter plan, effective May 2025."
+E006,2025-08-31,cancellation,S011,C012,,Starter,,-400.0,"Dunder Mifflin canceled at end of contract term effective August 31 2025. Real churn: $400 MRR lost, logo count drops by 1 in September. Not related to any transfer or reactivation."

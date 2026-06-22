@@ -1,0 +1,12 @@
+subscription_id,original_customer_id,start_date,end_date,status
+S001,C001,2025-01-01,,active
+S002,C002,2025-01-01,,active
+S003,C003,2025-01-01,,active
+S004,C005,2025-01-01,,active
+S005,C006,2025-01-01,,active
+S006,C007,2025-02-01,,active
+S007,C008,2025-01-01,,active
+S008,C009,2025-01-01,,active
+S009,C010,2025-01-01,,active
+S010,C011,2025-05-01,,active
+S011,C012,2025-01-01,2025-08-31,canceled

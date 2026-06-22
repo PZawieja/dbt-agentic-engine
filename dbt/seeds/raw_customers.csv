@@ -1,0 +1,13 @@
+customer_id,customer_name,segment,region,signup_date
+C001,Acme Co,MidMarket,US-East,2024-11-15
+C002,Brightline Inc,SMB,US-West,2024-10-01
+C003,Initech LLC,MidMarket,US-Central,2024-09-20
+C004,Globex Corp,Enterprise,EMEA,2025-07-01
+C005,Northwind Traders,SMB,US-East,2024-08-05
+C006,Hooli,Enterprise,US-West,2024-07-12
+C007,Vandelay Industries,SMB,US-Central,2025-01-20
+C008,Soylent Corp,MidMarket,EMEA,2024-12-01
+C009,Stark Industries,Enterprise,US-East,2024-06-18
+C010,Wayne Enterprises,Enterprise,US-West,2024-05-30
+C011,Pied Piper,SMB,US-Central,2025-04-25
+C012,Dunder Mifflin,SMB,US-East,2024-09-10

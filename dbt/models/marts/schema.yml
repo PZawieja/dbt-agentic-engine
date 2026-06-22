@@ -1,0 +1,192 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: Customer dimension — one row per customer account.
+    columns:
+      - name: customer_id
+        description: Primary key. Unique customer/account identifier.
+        tests:
+          - unique
+          - not_null
+      - name: customer_name
+        description: Display name of the customer account.
+      - name: segment
+        description: "Customer size segment: SMB, MidMarket, or Enterprise."
+      - name: region
+        description: Sales region the customer is booked under.
+      - name: signup_date
+        description: Date the customer first signed up.
+
+  - name: fct_mrr_monthly
+    description: >
+      Contracted MRR by customer and month. Absence of a row for a customer in a
+      given month means zero MRR that month (e.g. before signup or after churn).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - month_date
+    columns:
+      - name: customer_id
+        description: Customer this MRR belongs to.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: month_date
+        description: First-of-month date this MRR applies to.
+        tests:
+          - not_null
+      - name: mrr_amount
+        description: Total contracted MRR for this customer in this month.
+        tests:
+          - not_null
+
+  - name: fct_customer_logo_monthly
+    description: >
+      Logo activity by customer and month: whether the customer was active, and
+      whether that month was their first active month (new logo) or the month they
+      went inactive (churned logo), per the naive bridge logic in
+      int_customer_mrr_bridge_monthly. Cross-reference fct_contract_events before
+      treating a flagged month as real churn or real new business — some flags here
+      are caused by contract transfers, not genuine logo gain/loss.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - month_date
+    columns:
+      - name: customer_id
+        description: Customer this logo activity belongs to.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: month_date
+        description: First-of-month date this logo activity applies to.
+        tests:
+          - not_null
+      - name: is_active
+        description: Whether the customer had active MRR in this month.
+        tests:
+          - not_null
+      - name: is_new_logo
+        description: Whether this is the first month this customer appears with active MRR (within the analysis window).
+        tests:
+          - not_null
+      - name: is_churned_logo
+        description: Whether the customer dropped to zero MRR in this month after being active the prior month.
+        tests:
+          - not_null
+
+  - name: fct_mrr_bridge_monthly
+    description: >
+      Month-grain MRR bridge: new, expansion, contraction, and churned MRR, summed
+      across all customers from the naive per-customer bridge categories. Naive means
+      it has no awareness of contract-transfer events — a transferred contract shows
+      up as both churned MRR (old owner) and new MRR (new owner) in the same month
+      even though no real MRR was lost or gained. Join fct_contract_events on
+      month_date to identify and net out these cases.
+    columns:
+      - name: month_date
+        description: Primary key. First-of-month date this bridge row applies to.
+        tests:
+          - unique
+          - not_null
+      - name: new_mrr
+        description: MRR from customers in their first active month in the window.
+        tests:
+          - not_null
+      - name: expansion_mrr
+        description: MRR increase from existing customers upgrading.
+        tests:
+          - not_null
+      - name: contraction_mrr
+        description: MRR decrease from existing customers downgrading (signed negative).
+        tests:
+          - not_null
+      - name: churned_mrr
+        description: MRR lost from customers dropping to zero (signed negative).
+        tests:
+          - not_null
+      - name: net_new_mrr
+        description: Sum of all bridge components — net month-over-month MRR change across all customers.
+        tests:
+          - not_null
+
+  - name: fct_revenue_recognized_monthly
+    description: >
+      Recognized revenue by customer and month, keyed by the month revenue was
+      actually recognized. Compare against fct_mrr_monthly to spot months where
+      recognized revenue diverges from contracted MRR (e.g. a delayed invoice) — see
+      seed/events.md Event 3.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - month_date
+    columns:
+      - name: customer_id
+        description: Customer this recognized revenue belongs to.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: month_date
+        description: First-of-month date revenue was recognized in.
+        tests:
+          - not_null
+      - name: recognized_revenue
+        description: Total revenue recognized for this customer in this month.
+        tests:
+          - not_null
+
+  - name: fct_contract_events
+    description: >
+      Narrative log of business events (plan upgrades, contract transfers, delayed
+      invoices, new logos, cancellations). The join target for explaining anomalies
+      surfaced in fct_mrr_bridge_monthly, fct_customer_logo_monthly, and
+      fct_revenue_recognized_monthly. See seed/events.md for full documentation.
+    columns:
+      - name: event_id
+        description: Primary key. Unique event identifier.
+        tests:
+          - unique
+          - not_null
+      - name: event_date
+        description: Date the event took effect.
+        tests:
+          - not_null
+      - name: event_type
+        description: "Type of event: plan_upgrade, contract_transfer, delayed_invoice, new_logo, or cancellation."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["plan_upgrade", "contract_transfer", "delayed_invoice", "new_logo", "cancellation"]
+      - name: subscription_id
+        description: Subscription this event applies to.
+        tests:
+          - not_null
+      - name: old_customer_id
+        description: Prior customer owner, populated only for contract_transfer/cancellation events.
+      - name: new_customer_id
+        description: New customer owner, populated only for contract_transfer/new_logo events.
+      - name: old_plan
+        description: Plan before the event, populated only for plan_upgrade/cancellation events.
+      - name: new_plan
+        description: Plan after the event, populated only for plan_upgrade/new_logo events.
+      - name: mrr_delta
+        description: Net MRR impact of this event, signed (positive = expansion/new, negative = churn).
+      - name: description
+        description: Human-readable explanation of the event and its expected downstream effect.
