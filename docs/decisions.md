@@ -102,3 +102,12 @@ Carried over from prior work (do not reintroduce):
   Verified queryable both ways: `jq` for ad-hoc filtering and DuckDB's own `read_json_auto`
   directly against the file, satisfying the spec's "queryable/exportable" requirement concretely
   rather than by assertion.
+
+- Phase 5 manual sanity check (all 15 eval/questions.yml questions, live run): lookup tier 5/5
+  correct, unanswerable tier 3/3 correctly declined -- both clear the spec's DoD bar.
+  Investigation tier 5/7 correct; the 2 failures (q06, q08) hit the 6-call cap, and the traces
+  show the same already-documented cause -- the model guessing a nonexistent column
+  (`account_name`) instead of calling `get_model_columns` first, burning the budget on Binder
+  Errors. Not a new bug; matches the model-stochasticity entry above. Not re-tuning the prompt
+  further for this -- already tried, already accepted as a known fraction-of-attempts failure
+  mode for project 2's eval harness to quantify, not project 1's to eliminate.

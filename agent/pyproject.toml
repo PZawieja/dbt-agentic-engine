@@ -7,4 +7,6 @@ dependencies = [
     "anthropic>=0.111.0",
     "duckdb>=1.5.4",
     "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
+    "streamlit>=1.58.0",
 ]
