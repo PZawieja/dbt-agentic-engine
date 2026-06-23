@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.15.16 sqlfluff==4.2.2
+      - name: ruff check (agent/)
+        run: cd agent && ruff check .
+      - name: sqlfluff lint (dbt/models)
+        run: sqlfluff lint dbt/models
+
+  dbt-build:
+    runs-on: ubuntu-latest
+    env:
+      DBT_AGENTIC_ENGINE_DB_PATH: ${{ github.workspace }}/warehouse/ci.duckdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r dbt/requirements.txt
+      - name: Configure dbt profile
+        run: |
+          mkdir -p ~/.dbt "$(dirname "$DBT_AGENTIC_ENGINE_DB_PATH")"
+          cp dbt/profiles.yml.example ~/.dbt/profiles.yml
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+      - name: dbt build
+        working-directory: dbt
+        run: dbt build

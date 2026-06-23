@@ -1,0 +1,12 @@
+# Copy this file to ~/.dbt/profiles.yml (dbt's default profiles location,
+# never committed -- see CLAUDE.md). DBT_AGENTIC_ENGINE_DB_PATH lets every
+# environment (local, CI) point at its own warehouse file without editing
+# this file or hardcoding a machine-specific path.
+
+dbt_agentic_engine:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_AGENTIC_ENGINE_DB_PATH', 'warehouse/dbt_agentic_engine.duckdb') }}"
+      threads: 4

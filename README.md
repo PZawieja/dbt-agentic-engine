@@ -1,5 +1,7 @@
 # dbt Agentic Engine
 
+[![CI](https://github.com/PZawieja/dbt-agentic-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/PZawieja/dbt-agentic-engine/actions/workflows/ci.yml)
+
 Agentic tool-use over a dbt project: an LLM that chains multiple tool calls — listing
 models, checking columns, running read-only SQL, checking test results — to investigate
 an analytics question, rather than filling one pre-approved query template. Every tool
@@ -73,7 +75,11 @@ Free-form questions work the same way — no need to stick to the eval set:
 ## Running it locally
 
 ```bash
-cd dbt && dbt build          # builds the DuckDB warehouse from seeds
+cd dbt
+pip install -r requirements.txt              # dbt-core + dbt-duckdb, pinned
+cp profiles.yml.example ~/.dbt/profiles.yml  # one-time, per machine
+dbt build                                    # builds the DuckDB warehouse from seeds
+
 cd ../agent && uv sync
 echo "ANTHROPIC_API_KEY=sk-..." > .env   # gitignored — never commit this
 uv run streamlit run app.py
