@@ -26,8 +26,10 @@ the contract-events log, and cross-referencing them, not running one query.
 - **`agent/`** — the toolbelt (`tools.py`), the Claude tool-use loop (`agent_loop.py`),
   structured trace logging (`trace_log.py`), and a Streamlit demo (`app.py`).
 - **`eval/questions.yml`** — 15 hand-written questions (lookup / investigation /
-  unanswerable tiers) used to sanity-check the agent. A future project in this series
-  scores against this file directly.
+  unanswerable tiers) used to sanity-check the agent. Project 2 in this series,
+  [`llmops-eval-harness`](https://github.com/PZawieja/llmops-eval-harness), reads this
+  file directly and runs the full set live with scoring, cost tracking, and regression
+  gating.
 - **`traces/sample_trace_q07.jsonl`** — one committed example trace: a clean 6-call
   resolution of the Initech/Globex contract-transfer question.
 - **`docs/spec.md`** / **`docs/decisions.md`** — the spec this was built against, and an
@@ -96,8 +98,16 @@ All 15 questions run live against the agent: lookup tier 5/5 correct, unanswerab
 correct; the 2 failures hit the tool-call cap for the reason described above (known
 model stochasticity, not a bug in the loop — see `docs/decisions.md`).
 
+## Series
+
+| # | Repo | What it adds |
+|---|---|---|
+| 1 | [dbt-agentic-engine](https://github.com/PZawieja/dbt-agentic-engine) (this repo) | Agentic tool-use + structured trace |
+| 2 | [llmops-eval-harness](https://github.com/PZawieja/llmops-eval-harness) | Scored eval loop, cost/latency tracking, regression gate |
+| 3 | — | Semantic layer agent (MetricFlow) |
+| 4 | — | Multi-tenant cost guardrails |
+
 ## Non-goals (v1)
 
-No multi-tenant cost controls, no semantic layer / MetricFlow integration, no automated
-cost/eval scoring loop, no write access of any kind from the agent. See `docs/spec.md`
-for the full scope and the rest of this four-project series.
+No multi-tenant cost controls, no semantic layer / MetricFlow integration, no write
+access of any kind from the agent. See `docs/spec.md` for the full scope.
