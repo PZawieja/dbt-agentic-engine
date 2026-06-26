@@ -8,6 +8,8 @@ an analytics question, rather than filling one pre-approved query template. Ever
 call is logged as a structured trace; the trace, not the chat answer, is the
 differentiator this project is built to show.
 
+**Build log:** [goldlayer.dev/writing/dbt-agentic-engine-build-log](https://goldlayer.dev/writing/dbt-agentic-engine-build-log.html)
+
 ## The gap this closes
 
 An earlier project, `revenue-intelligence-agent`, demonstrates governed AI the other
